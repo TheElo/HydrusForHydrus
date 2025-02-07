@@ -82,23 +82,6 @@ def ExamplePopulation():
         # Close the connection
         mydb.close()
 
-def get_page_list(client):
-    """Convenience function that returns a flattened version of the page tree from `Client.get_pages()`.
-
-    Returns:
-        A list of every "pages" value in the page tree in pre-order (NLR)
-    """
-    tree = client.get_pages()["pages"]
-    pages = []
-
-    def walk_tree(page):
-        pages.append(page)
-        for sub_page in page.get("pages", ()):
-            walk_tree(sub_page)
-
-    walk_tree(tree)
-    return pages
-
 def DBHighScoreArchiver(client, blacklist, whitelist, limit, tabname="HFH"):
 
     def find_page_key(tabs, tabname):
@@ -179,5 +162,3 @@ if __name__ == '__main__':
         ExamplePopulation()
     client = hydrus_api.Client(access_key=access_key, api_url=api_url)
     DBHighScoreArchiver(client, blacklist, whitelist, limit=1024, tabname=tabname)
-
-
