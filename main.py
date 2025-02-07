@@ -9,9 +9,9 @@
 
 api_url = "APIURL"
 access_key = "YOUR API KEY"
-populate_db_with_examples = False # set to True to get some example data into your db
-whitelist = ["system:inbox"]  # will be put at the end of all queries
-blacklist = ["gore", "politics"]  # will get a - in front of all tags and also added to all queries
+populate_db_with_examples = True # set to True to get some example data into your db
+whitelist = ["system:inbox", "system:filetype is animation, image, video"]  # will be put at the end of all queries
+blacklist = ["gore"]  # will get a - in front of all tags and also added to all queries
 tabname = "HFH"
 limit = 1024
 default_score = 0.1 # tags without a score will be tagged with this
@@ -62,18 +62,36 @@ def ExamplePopulation():
 
         # Define example data
         example_data = [
-            ('samus aran', 0.5, None, None),
-            ('elf', 0.7, None, "give positive score to things you like"),
-            ('blood', -1.50, 'tag3_sibling', 'go negative for things you dont like, think how much good stuff it would need to balance it, go high for really bad stuff'),
-            ('system:has audio', 0.1, None, 'use system tags for quality value')
+            ('samus aran', 0.3, None, None),
+            ('elf', 0.2, None, "give positive score to things you like"),
+            ('blood', -1.0, None, 'go negative for things you dont like, think how much good stuff it would need to balance it, go high for really bad stuff'),
+            ('system:has audio', 0.1, None, 'use system tags for quality value'),
+            ('system:ratio = 16:9', 0.1, None, 'use system tags for quality value'),
+            ('science fiction', 0.2, None, 'use system tags for quality value'),
+            ('computer', 0.1, None, 'use system tags for quality value'),
+            ('monochrome', -0.1, None, 'use system tags for quality value'),
+            ('greyscale', -0.1, None, 'use system tags for quality value'),
+            ('system:has transparency', -0.1, None, 'use system tags for quality value'),
+            ('system:width = 3,840', 0.1, None, 'use system tags for quality value'),
+            ('system:height = 2,160', 0.1, None, 'use system tags for quality value')
         ]
 
-        # Insert example data into the table
-        cmydb.executemany("""
-            INSERT INTO TagScores (tag, score, siblings, comment) VALUES (?, ?, ?, ?)
-        """, example_data)
+        # Get existing tags from the database
+        cmydb.execute('SELECT tag FROM TagScores')
+        existing_tags = set([row[0] for row in cmydb.fetchall()])
 
-        print("Example data inserted.")
+        # Filter out tags that already exist
+        new_data = [data for data in example_data if data[0] not in existing_tags]
+
+        # Insert new data into the table
+        if new_data:
+            cmydb.executemany("""
+                INSERT INTO TagScores (tag, score, siblings, comment) VALUES (?, ?, ?, ?)
+            """, new_data)
+            print("New example data inserted.")
+        else:
+            print("No new example data to insert.")
+
         # Commit the changes
         mydb.commit()
     except sqlite3.Error as e:
