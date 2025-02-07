@@ -5,38 +5,18 @@ import hydrus_api
 from tqdm import tqdm
 import json
 import os
+import pyperclip
 
 # Constants
-api_url = "APIURL"
-access_key = "YOUR API KEY"
+API_URL = "APIURL"
+ACCESS_KEY = "YOUR API KEY"
 POPULATE_DB_WITH_EXAMPLES = True
 WHITELIST = ["system:inbox", "system:filetype is animation, image, video"]
 BLACKLIST = ["gore"]
 TABNAME = "HFH"
-LIMIT = 1024
+LIMIT = 2048
 DEFAULT_SCORE = 0.1
-CONFIG_FILE = "config.json"
 DEFAULT_SCORE_INCREMENT = 0.1
-
-# Load Configuration
-def load_config():
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, 'r') as file:
-            return json.load(file)
-    return {
-        "window_size": "800x600",
-        "window_position": "+100+100",
-        "column_widths": {"Tag": 150, "Score": 100, "Siblings": 150, "Comment": 200},
-        "selected_tab": "Data",
-        "font_size": 10,
-        "entry_width": 40,
-        "score_increment": DEFAULT_SCORE_INCREMENT
-    }
-
-# Save Configuration
-def save_config(config):
-    with open(CONFIG_FILE, 'w') as file:
-        json.dump(config, file)
 
 # Initialize Database
 def initialize_database():
@@ -53,6 +33,32 @@ def initialize_database():
                 comment TEXT
             )
         """)
+    cmydb.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='Settings'")
+    settings_table_exists = cmydb.fetchone()
+    if not settings_table_exists:
+        cmydb.execute("""
+            CREATE TABLE Settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            )
+        """)
+        # Initialize settings with default values
+        default_settings = [
+            ('API_URL', API_URL),
+            ('ACCESS_KEY', ACCESS_KEY),
+            ('TABNAME', TABNAME),
+            ('LIMIT', str(LIMIT)),
+            ('DEFAULT_SCORE', str(DEFAULT_SCORE)),
+            ('SCORE_INCREMENT', str(DEFAULT_SCORE_INCREMENT)),
+            ('WINDOW_SIZE', '800x600'),
+            ('WINDOW_POSITION', '+100+100'),
+            ('COLUMN_WIDTHS', json.dumps({"Tag": 150, "Score": 100, "Siblings": 150, "Comment": 200})),
+            ('SELECTED_TAB', 'Data'),
+            ('FONT_SIZE', '14'),
+            ('ENTRY_WIDTH', '40'),
+            ('EXAMPLES_POPULATED', 'False')  # Add a flag to indicate if examples have been populated
+        ]
+        cmydb.executemany("INSERT INTO Settings (key, value) VALUES (?, ?)", default_settings)
     mydb.commit()
     mydb.close()
 
@@ -104,6 +110,39 @@ def save_database_changes(rows):
     """, rows)
     mydb.commit()
     mydb.close()
+
+# Save Settings to Database
+def save_settings_to_db(api_url, access_key, tabname, limit, default_score, score_increment, window_size, window_position, column_widths, selected_tab, font_size, entry_width, examples_populated):
+    mydb = sqlite3.connect('db.db')
+    cmydb = mydb.cursor()
+    settings = [
+        ('API_URL', api_url),
+        ('ACCESS_KEY', access_key),
+        ('TABNAME', tabname),
+        ('LIMIT', str(limit)),
+        ('DEFAULT_SCORE', str(default_score)),
+        ('SCORE_INCREMENT', str(score_increment)),
+        ('WINDOW_SIZE', window_size),
+        ('WINDOW_POSITION', window_position),
+        ('COLUMN_WIDTHS', json.dumps(column_widths)),
+        ('SELECTED_TAB', selected_tab),
+        ('FONT_SIZE', str(font_size)),
+        ('ENTRY_WIDTH', str(entry_width)),
+        ('EXAMPLES_POPULATED', examples_populated)  # Update the flag
+    ]
+    for key, value in settings:
+        cmydb.execute("REPLACE INTO Settings (key, value) VALUES (?, ?)", (key, value))
+    mydb.commit()
+    mydb.close()
+
+# Load Settings from Database
+def load_settings_from_db():
+    mydb = sqlite3.connect('db.db')
+    cmydb = mydb.cursor()
+    cmydb.execute('SELECT key, value FROM Settings')
+    settings = {row[0]: row[1] for row in cmydb.fetchall()}
+    mydb.close()
+    return settings
 
 # DB High Score Archiver
 def db_high_score_archiver(client, blacklist, whitelist, limit, tabname):
@@ -159,10 +198,10 @@ def db_high_score_archiver(client, blacklist, whitelist, limit, tabname):
 class HydrusFileHighScoreApp(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.config = load_config()
+        self.settings = load_settings_from_db()
         self.title("Hydrus File High Score Archiver")
-        self.geometry(self.config["window_size"])
-        self.geometry(self.config["window_position"])
+        self.geometry(self.settings.get("WINDOW_SIZE", "800x600"))
+        self.geometry(self.settings.get("WINDOW_POSITION", "+100+100"))
 
         # Dark Mode Theme
         self.style = ttk.Style()
@@ -171,19 +210,19 @@ class HydrusFileHighScoreApp(tk.Tk):
         self.style.map('.', background=[('active', '#555555')])
 
         # Define custom styles for buttons
-        self.style.configure('TButtonGreen.TButton', background="#4CAF50", foreground="#ffffff", font=('Helvetica', self.config["font_size"]))
+        self.style.configure('TButtonGreen.TButton', background="#4CAF50", foreground="#ffffff", font=('Helvetica', int(self.settings.get("FONT_SIZE", 10))))
         self.style.map('TButtonGreen.TButton', background=[('active', '#45a049')])
-        self.style.configure('TButtonRed.TButton', background="#F44336", foreground="#ffffff", font=('Helvetica', self.config["font_size"]))
+        self.style.configure('TButtonRed.TButton', background="#F44336", foreground="#ffffff", font=('Helvetica', int(self.settings.get("FONT_SIZE", 10))))
         self.style.map('TButtonRed.TButton', background=[('active', '#d32f2f')])
-        self.style.configure('TButtonBlue.TButton', background="#2196F3", foreground="#ffffff", font=('Helvetica', self.config["font_size"]))
+        self.style.configure('TButtonBlue.TButton', background="#2196F3", foreground="#ffffff", font=('Helvetica', int(self.settings.get("FONT_SIZE", 10))))
         self.style.map('TButtonBlue.TButton', background=[('active', '#1976d2')])
 
         # Custom style for dark entry background
-        self.style.configure('Dark.TEntry', background="#2b2b2b", foreground="#ffffff", fieldbackground="#2b2b2b", font=('Helvetica', self.config["font_size"]), width=self.config["entry_width"])
+        self.style.configure('Dark.TEntry', background="#2b2b2b", foreground="#ffffff", fieldbackground="#2b2b2b", font=('Helvetica', int(self.settings.get("FONT_SIZE", 10))), width=int(self.settings.get("ENTRY_WIDTH", 40)))
 
         # Custom style for treeview
-        self.style.configure('Treeview', background="#2b2b2b", foreground="#ffffff", fieldbackground="#2b2b2b", font=('Helvetica', self.config["font_size"]))
-        self.style.configure('Treeview.Heading', background="#2b2b2b", foreground="#ffffff", font=('Helvetica', self.config["font_size"]))
+        self.style.configure('Treeview', background="#2b2b2b", foreground="#ffffff", fieldbackground="#2b2b2b", font=('Helvetica', int(self.settings.get("FONT_SIZE", 10))))
+        self.style.configure('Treeview.Heading', background="#2b2b2b", foreground="#ffffff", font=('Helvetica', int(self.settings.get("FONT_SIZE", 10))))
 
         # Notebook for tabs
         self.notebook = ttk.Notebook(self)
@@ -199,8 +238,9 @@ class HydrusFileHighScoreApp(tk.Tk):
         self.tree.heading("Score", text="Score", command=lambda: self.sort_column("Score"))
         self.tree.heading("Siblings", text="Siblings", command=lambda: self.sort_column("Siblings"))
         self.tree.heading("Comment", text="Comment", command=lambda: self.sort_column("Comment"))
-        for col in self.config["column_widths"]:
-            self.tree.column(col, width=self.config["column_widths"][col])
+        column_widths = json.loads(self.settings.get("COLUMN_WIDTHS", json.dumps({"Tag": 150, "Score": 100, "Siblings": 150, "Comment": 200})))
+        for col in column_widths:
+            self.tree.column(col, width=int(column_widths[col]))
         self.tree.pack(expand=1, fill='both')
 
         # Bind keyboard shortcuts
@@ -225,40 +265,40 @@ class HydrusFileHighScoreApp(tk.Tk):
         self.notebook.add(self.settings_tab, text="Settings")
 
         # Labels and Entries in Settings Tab
-        self.api_url_label = ttk.Label(self.settings_tab, text="API URL:", font=('Helvetica', self.config["font_size"]))
+        self.api_url_label = ttk.Label(self.settings_tab, text="API URL:", font=('Helvetica', int(self.settings.get("FONT_SIZE", 10))))
         self.api_url_label.grid(row=0, column=0, padx=10, pady=5, sticky='w')
         self.api_url_entry = ttk.Entry(self.settings_tab, style='Dark.TEntry')
-        self.api_url_entry.insert(0, API_URL)
+        self.api_url_entry.insert(0, self.settings.get("API_URL", API_URL))
         self.api_url_entry.grid(row=0, column=1, padx=10, pady=5)
 
-        self.access_key_label = ttk.Label(self.settings_tab, text="Access Key:", font=('Helvetica', self.config["font_size"]))
+        self.access_key_label = ttk.Label(self.settings_tab, text="Access Key:", font=('Helvetica', int(self.settings.get("FONT_SIZE", 10))))
         self.access_key_label.grid(row=1, column=0, padx=10, pady=5, sticky='w')
         self.access_key_entry = ttk.Entry(self.settings_tab, style='Dark.TEntry')
-        self.access_key_entry.insert(0, ACCESS_KEY)
+        self.access_key_entry.insert(0, self.settings.get("ACCESS_KEY", ACCESS_KEY))
         self.access_key_entry.grid(row=1, column=1, padx=10, pady=5)
 
-        self.tab_name_label = ttk.Label(self.settings_tab, text="Tab Name:", font=('Helvetica', self.config["font_size"]))
+        self.tab_name_label = ttk.Label(self.settings_tab, text="Tab Name:", font=('Helvetica', int(self.settings.get("FONT_SIZE", 10))))
         self.tab_name_label.grid(row=2, column=0, padx=10, pady=5, sticky='w')
         self.tab_name_entry = ttk.Entry(self.settings_tab, style='Dark.TEntry')
-        self.tab_name_entry.insert(0, TABNAME)
+        self.tab_name_entry.insert(0, self.settings.get("TABNAME", TABNAME))
         self.tab_name_entry.grid(row=2, column=1, padx=10, pady=5)
 
-        self.limit_label = ttk.Label(self.settings_tab, text="Limit:", font=('Helvetica', self.config["font_size"]))
+        self.limit_label = ttk.Label(self.settings_tab, text="Limit:", font=('Helvetica', int(self.settings.get("FONT_SIZE", 10))))
         self.limit_label.grid(row=3, column=0, padx=10, pady=5, sticky='w')
         self.limit_entry = ttk.Entry(self.settings_tab, style='Dark.TEntry')
-        self.limit_entry.insert(0, str(LIMIT))
+        self.limit_entry.insert(0, str(int(self.settings.get("LIMIT", LIMIT))))
         self.limit_entry.grid(row=3, column=1, padx=10, pady=5)
 
-        self.default_score_label = ttk.Label(self.settings_tab, text="Default Score:", font=('Helvetica', self.config["font_size"]))
+        self.default_score_label = ttk.Label(self.settings_tab, text="Default Score:", font=('Helvetica', int(self.settings.get("FONT_SIZE", 10))))
         self.default_score_label.grid(row=4, column=0, padx=10, pady=5, sticky='w')
         self.default_score_entry = ttk.Entry(self.settings_tab, style='Dark.TEntry')
-        self.default_score_entry.insert(0, str(DEFAULT_SCORE))
+        self.default_score_entry.insert(0, str(float(self.settings.get("DEFAULT_SCORE", DEFAULT_SCORE))))
         self.default_score_entry.grid(row=4, column=1, padx=10, pady=5)
 
-        self.score_increment_label = ttk.Label(self.settings_tab, text="Score Increment:", font=('Helvetica', self.config["font_size"]))
+        self.score_increment_label = ttk.Label(self.settings_tab, text="Score Increment:", font=('Helvetica', int(self.settings.get("FONT_SIZE", 10))))
         self.score_increment_label.grid(row=5, column=0, padx=10, pady=5, sticky='w')
         self.score_increment_entry = ttk.Entry(self.settings_tab, style='Dark.TEntry')
-        self.score_increment_entry.insert(0, str(self.config["score_increment"]))
+        self.score_increment_entry.insert(0, str(float(self.settings.get("SCORE_INCREMENT", DEFAULT_SCORE_INCREMENT))))
         self.score_increment_entry.grid(row=5, column=1, padx=10, pady=5)
 
         # Load initial data
@@ -295,31 +335,60 @@ class HydrusFileHighScoreApp(tk.Tk):
             else:
                 messagebox.showerror("Error", "Tag and Score are required fields.")
 
+        def adjust_score(direction):
+            try:
+                current_score = float(score_entry.get())
+                increment = float(self.settings.get("SCORE_INCREMENT", DEFAULT_SCORE_INCREMENT))
+                new_score = current_score + direction * increment
+                new_score = round(new_score, 2)  # Round to two decimal places
+                score_entry.delete(0, tk.END)
+                score_entry.insert(0, str(new_score))
+            except ValueError:
+                messagebox.showerror("Error", "Score must be a number.")
+
+        # Check clipboard content
+        clipboard_content = pyperclip.paste()
+        if len(clipboard_content) < 80 and " " not in clipboard_content:
+            initial_tag = clipboard_content
+        else:
+            initial_tag = ""
+
         add_window = tk.Toplevel(self)
         add_window.title("Add Tag")
-        add_window.geometry("400x200")
+        add_window.geometry("500x250")  # Adjusted width and height
         add_window.configure(bg="#2b2b2b")
 
-        tag_label = ttk.Label(add_window, text="Tag:", font=('Helvetica', self.config["font_size"]))
+        # Configure grid
+        add_window.grid_columnconfigure(1, weight=1)
+
+        tag_label = ttk.Label(add_window, text="Tag:", font=('Helvetica', int(self.settings.get("FONT_SIZE", 10))))
         tag_label.grid(row=0, column=0, padx=10, pady=5, sticky='w')
         tag_entry = ttk.Entry(add_window, style='Dark.TEntry')
-        tag_entry.grid(row=0, column=1, padx=10, pady=5)
+        tag_entry.insert(0, initial_tag)
+        tag_entry.grid(row=0, column=1, padx=10, pady=5, sticky='ew')
         tag_entry.focus_set()
 
-        score_label = ttk.Label(add_window, text="Score:", font=('Helvetica', self.config["font_size"]))
+        score_label = ttk.Label(add_window, text="Score:", font=('Helvetica', int(self.settings.get("FONT_SIZE", 10))))
         score_label.grid(row=1, column=0, padx=10, pady=5, sticky='w')
         score_entry = ttk.Entry(add_window, style='Dark.TEntry')
-        score_entry.grid(row=1, column=1, padx=10, pady=5)
+        score_entry.insert(0, str(float(self.settings.get("DEFAULT_SCORE", DEFAULT_SCORE))))  # Populate with default score
+        score_entry.grid(row=1, column=1, padx=10, pady=5, sticky='ew')
 
-        siblings_label = ttk.Label(add_window, text="Siblings:", font=('Helvetica', self.config["font_size"]))
+        # Add "+" and "-" buttons next to the score entry
+        plus_button = ttk.Button(add_window, text="+", command=lambda: adjust_score(1), style='TButtonGreen.TButton', width=2)
+        plus_button.grid(row=1, column=2, padx=5, pady=5)
+        minus_button = ttk.Button(add_window, text="-", command=lambda: adjust_score(-1), style='TButtonRed.TButton', width=2)
+        minus_button.grid(row=1, column=3, padx=5, pady=5)
+
+        siblings_label = ttk.Label(add_window, text="Siblings:", font=('Helvetica', int(self.settings.get("FONT_SIZE", 10))))
         siblings_label.grid(row=2, column=0, padx=10, pady=5, sticky='w')
         siblings_entry = ttk.Entry(add_window, style='Dark.TEntry')
-        siblings_entry.grid(row=2, column=1, padx=10, pady=5)
+        siblings_entry.grid(row=2, column=1, padx=10, pady=5, sticky='ew')
 
-        comment_label = ttk.Label(add_window, text="Comment:", font=('Helvetica', self.config["font_size"]))
+        comment_label = ttk.Label(add_window, text="Comment:", font=('Helvetica', int(self.settings.get("FONT_SIZE", 10))))
         comment_label.grid(row=3, column=0, padx=10, pady=5, sticky='w')
         comment_entry = ttk.Entry(add_window, style='Dark.TEntry')
-        comment_entry.grid(row=3, column=1, padx=10, pady=5)
+        comment_entry.grid(row=3, column=1, padx=10, pady=5, sticky='ew')
 
         ok_button = ttk.Button(add_window, text="OK", command=on_ok, style='TButtonGreen.TButton')
         ok_button.grid(row=4, column=0, padx=10, pady=10)
@@ -356,35 +425,55 @@ class HydrusFileHighScoreApp(tk.Tk):
             else:
                 messagebox.showerror("Error", "Tag and Score are required fields.")
 
+        def adjust_score(direction):
+            try:
+                current_score = float(score_entry.get())
+                increment = float(self.settings.get("SCORE_INCREMENT", DEFAULT_SCORE_INCREMENT))
+                new_score = current_score + direction * increment
+                new_score = round(new_score, 2)  # Round to two decimal places
+                score_entry.delete(0, tk.END)
+                score_entry.insert(0, str(new_score))
+            except ValueError:
+                messagebox.showerror("Error", "Score must be a number.")
+
         edit_window = tk.Toplevel(self)
         edit_window.title("Edit Tag")
-        edit_window.geometry("400x200")
+        edit_window.geometry("500x250")  # Adjusted width and height
         edit_window.configure(bg="#2b2b2b")
 
-        tag_label = ttk.Label(edit_window, text="Tag:", font=('Helvetica', self.config["font_size"]))
+        # Configure grid
+        edit_window.grid_columnconfigure(1, weight=1)
+
+        tag_label = ttk.Label(edit_window, text="Tag:", font=('Helvetica', int(self.settings.get("FONT_SIZE", 10))))
         tag_label.grid(row=0, column=0, padx=10, pady=5, sticky='w')
         tag_entry = ttk.Entry(edit_window, style='Dark.TEntry')
         tag_entry.insert(0, item_values[0])
-        tag_entry.grid(row=0, column=1, padx=10, pady=5)
+        tag_entry.grid(row=0, column=1, padx=10, pady=5, sticky='ew')
         tag_entry.focus_set()
 
-        score_label = ttk.Label(edit_window, text="Score:", font=('Helvetica', self.config["font_size"]))
+        score_label = ttk.Label(edit_window, text="Score:", font=('Helvetica', int(self.settings.get("FONT_SIZE", 10))))
         score_label.grid(row=1, column=0, padx=10, pady=5, sticky='w')
         score_entry = ttk.Entry(edit_window, style='Dark.TEntry')
         score_entry.insert(0, item_values[1])
-        score_entry.grid(row=1, column=1, padx=10, pady=5)
+        score_entry.grid(row=1, column=1, padx=10, pady=5, sticky='ew')
 
-        siblings_label = ttk.Label(edit_window, text="Siblings:", font=('Helvetica', self.config["font_size"]))
+        # Add "+" and "-" buttons next to the score entry
+        plus_button = ttk.Button(edit_window, text="+", command=lambda: adjust_score(1), style='TButtonGreen.TButton', width=2)
+        plus_button.grid(row=1, column=2, padx=5, pady=5)
+        minus_button = ttk.Button(edit_window, text="-", command=lambda: adjust_score(-1), style='TButtonRed.TButton', width=2)
+        minus_button.grid(row=1, column=3, padx=5, pady=5)
+
+        siblings_label = ttk.Label(edit_window, text="Siblings:", font=('Helvetica', int(self.settings.get("FONT_SIZE", 10))))
         siblings_label.grid(row=2, column=0, padx=10, pady=5, sticky='w')
         siblings_entry = ttk.Entry(edit_window, style='Dark.TEntry')
         siblings_entry.insert(0, item_values[2] if item_values[2] else "")
-        siblings_entry.grid(row=2, column=1, padx=10, pady=5)
+        siblings_entry.grid(row=2, column=1, padx=10, pady=5, sticky='ew')
 
-        comment_label = ttk.Label(edit_window, text="Comment:", font=('Helvetica', self.config["font_size"]))
+        comment_label = ttk.Label(edit_window, text="Comment:", font=('Helvetica', int(self.settings.get("FONT_SIZE", 10))))
         comment_label.grid(row=3, column=0, padx=10, pady=5, sticky='w')
         comment_entry = ttk.Entry(edit_window, style='Dark.TEntry')
         comment_entry.insert(0, item_values[3] if item_values[3] else "")
-        comment_entry.grid(row=3, column=1, padx=10, pady=5)
+        comment_entry.grid(row=3, column=1, padx=10, pady=5, sticky='ew')
 
         ok_button = ttk.Button(edit_window, text="OK", command=on_ok, style='TButtonGreen.TButton')
         ok_button.grid(row=4, column=0, padx=10, pady=10)
@@ -443,7 +532,7 @@ class HydrusFileHighScoreApp(tk.Tk):
         item_values = self.tree.item(selected_item, "values")
         try:
             score = float(item_values[1])
-            increment = float(self.score_increment_entry.get())
+            increment = float(self.settings.get("SCORE_INCREMENT", DEFAULT_SCORE_INCREMENT))
             score += direction * increment
             score = round(score, 2)  # Round to two decimal places
             self.tree.item(selected_item, values=(item_values[0], score, item_values[2], item_values[3]))
@@ -455,22 +544,49 @@ class HydrusFileHighScoreApp(tk.Tk):
 
     def on_closing(self):
         # Save window size and position
-        self.config["window_size"] = self.geometry().split('+')[0]
-        self.config["window_position"] = f"+{self.winfo_x()}+{self.winfo_y()}"
+        window_size = self.geometry().split('+')[0]
+        window_position = f"+{self.winfo_x()}+{self.winfo_y()}"
         # Save column widths
-        for col in self.config["column_widths"]:
-            self.config["column_widths"][col] = self.tree.column(col, "width")
-        # Save score increment
-        self.config["score_increment"] = float(self.score_increment_entry.get())
-        # Save configuration
-        save_config(self.config)
+        column_widths = {col: self.tree.column(col, "width") for col in self.tree["columns"]}
+        # Save other settings
+        save_settings_to_db(
+            self.api_url_entry.get(),
+            self.access_key_entry.get(),
+            self.tab_name_entry.get(),
+            int(self.limit_entry.get()),
+            float(self.default_score_entry.get()),
+            float(self.score_increment_entry.get()),
+            window_size,
+            window_position,
+            column_widths,
+            self.settings.get("SELECTED_TAB", "Data"),
+            int(self.settings.get("FONT_SIZE", 14)),
+            int(self.settings.get("ENTRY_WIDTH", 40)),
+            self.settings.get("EXAMPLES_POPULATED", "False")  # Pass the flag
+        )
         self.destroy()
 
 # Run the Application
 if __name__ == '__main__':
     initialize_database()
-    if POPULATE_DB_WITH_EXAMPLES:
+    examples_populated = load_settings_from_db().get("EXAMPLES_POPULATED", "False")
+    if examples_populated == "False":
         example_population()
+        save_settings_to_db(
+            API_URL,
+            ACCESS_KEY,
+            TABNAME,
+            LIMIT,
+            DEFAULT_SCORE,
+            DEFAULT_SCORE_INCREMENT,
+            '800x600',
+            '+100+100',
+            {"Tag": 150, "Score": 100, "Siblings": 150, "Comment": 200},
+            'Data',
+            14,
+            40,
+            "True"  # Set the flag to True after population
+        )
     app = HydrusFileHighScoreApp()
     app.protocol("WM_DELETE_WINDOW", app.on_closing)
     app.mainloop()
