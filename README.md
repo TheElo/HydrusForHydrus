@@ -18,10 +18,12 @@ Install the required Python packages by running:
 
 ### Tips
 - highly recommended: use machine learning based image classification tool to tag your files first, to get even better results
-- Regularly update your TagScores table to reflect your preferences. Just sort by scores and ask yourself what should have a higher or lower score compared to similiar scored tags.
+- regularly update your TagScores table to reflect your preferences and new interests.
+- Maintain your scores by sorting the table by score and ask yourself what should have a higher or lower score compared to similiar scored tags.
 - use whitelist to filter results (default: system:inbox)
 - use blacklist to remove files from the results
 
-
+### Issues & Workarounds
+- after the files get added to the tab, they are neither sorted* or collected (*they are actually sorted by score at that state) - so refresh the sorting and collecting by selecting "leave unmatched" then just select "leave unmatched" again, this will update the collections and sorting of files
 
 
