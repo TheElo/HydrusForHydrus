@@ -1,0 +1,3 @@
+hydrus_api
+tqdm
+pyperclip
