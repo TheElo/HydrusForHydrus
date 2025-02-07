@@ -26,4 +26,11 @@ Install the required Python packages by running:
 ### Issues & Workarounds
 - after the files get added to the tab, they are neither sorted* or collected (*they are actually sorted by score at that state) - so refresh the sorting and collecting by selecting "leave unmatched" then just select "leave unmatched" again, this will update the collections and sorting of files
 
+## HighScoreArchiver UI Version
+- no need for another tool to edit the data
 
+### Controls
+- use "+" and "-" to increas or decrease score by the set increment
+
+### Future
+- will add a status bar to show how long execution takes
