@@ -65,15 +65,15 @@ def ExamplePopulation():
             ('samus aran', 0.3, None, None),
             ('elf', 0.2, None, "give positive score to things you like"),
             ('blood', -1.0, None, 'go negative for things you dont like, think how much good stuff it would need to balance it, go high for really bad stuff'),
-            ('system:has audio', 0.1, None, 'use system tags for quality value'),
-            ('system:ratio = 16:9', 0.1, None, 'use system tags for quality value'),
-            ('science fiction', 0.2, None, 'use system tags for quality value'),
-            ('computer', 0.1, None, 'use system tags for quality value'),
-            ('monochrome', -0.1, None, 'use system tags for quality value'),
-            ('greyscale', -0.1, None, 'use system tags for quality value'),
-            ('system:has transparency', -0.1, None, 'use system tags for quality value'),
-            ('system:width = 3,840', 0.1, None, 'use system tags for quality value'),
-            ('system:height = 2,160', 0.1, None, 'use system tags for quality value')
+            ('system:has audio', 0.1, None, None),
+            ('system:ratio = 16:9', 0.1, None, 'I like files that fit my screen well'),
+            ('science fiction', 0.2, None, '*spaceship noises*'),
+            ('computer', 0.1, None, 'computer for the win!'),
+            ('monochrome', -0.1, None, 'Why does it burn when I see?'),
+            ('greyscale', -0.1, None, 'Why does it burn when I see?'),
+            ('system:has transparency', -0.1, None, 'transparency can be annoying'),
+            ('system:width = 3,840', 0.1, None, 'prefer 4k files'),
+            ('system:height = 2,160', 0.1, None, 'prefer 4k files')
         ]
 
         # Get existing tags from the database
