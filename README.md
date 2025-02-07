@@ -14,7 +14,7 @@ This tool calculates the score for each file, based on the tags & scores your pr
 
 ### Install Dependencies
 Install the required Python packages by running:
-`pip install hydrus-api tqdm`
+`pip install hydrus-api tqdm pyperclip `
 
 ### Tips
 - highly recommended: use machine learning based image classification tool to tag your files first, to get even better results
