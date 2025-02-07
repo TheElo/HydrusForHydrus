@@ -30,6 +30,7 @@ Install the required Python packages by running:
 - no need for another tool to edit the data
 
 ### Controls
+- when adding a tag it will check your clipboard and import the tag automatically
 - use "+" and "-" to increas or decrease score by the set increment
 
 ### Future
