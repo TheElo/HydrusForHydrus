@@ -12,6 +12,9 @@ This tool calculates the score for each file, based on the tags & scores your pr
 3. let the script run, it will create the necessary database and add some example data, then send the results to hydrus for you to inspect.
 4. open the .db file with something like "DB Viever for SQlite". If you wish edit or remove the example data. Add the tags you do like and don't like. Provide scores for each how much you like the tag, to express how much you like TagA more than TabB. Use negative scores to penalize tags you don't like, this will make them occure less often in the results.
 
+install requirements:
+`pip install -r requirements.txt`
+
 ### Install Dependencies
 Install the required Python packages by running:
 `pip install hydrus-api tqdm pyperclip `
